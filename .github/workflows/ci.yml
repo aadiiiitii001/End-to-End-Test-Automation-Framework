@@ -1,4 +1,4 @@
-name: Automation Tests
+name: Automation CI
 
 on:
   push:
@@ -6,7 +6,11 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-22.04   # 🔥 Important Fix
+    runs-on: ubuntu-22.04
+
+    strategy:
+      matrix:
+        python-version: [3.9, 3.10]
 
     steps:
       - name: Checkout Repository
@@ -15,7 +19,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: ${{ matrix.python-version }}
 
       - name: Install Dependencies
         run: |
@@ -24,18 +28,15 @@ jobs:
           playwright install --with-deps
 
       - name: Create Reports Directory
-        run: |
-          mkdir -p reports/html
-          mkdir -p reports/logs
+        run: mkdir -p reports/html
 
       - name: Run Tests
         run: |
           pytest tests/ --html=reports/html/report.html --self-contained-html
-        continue-on-error: true
 
       - name: Upload Reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: automation-reports
+          name: automation-reports-${{ matrix.python-version }}
           path: reports/
