@@ -1,4 +1,4 @@
-name: Automation Tests
+name: Automation CI
 
 on:
   push:
@@ -6,7 +6,26 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-22.04   # 🔥 Important Fix
+    runs-on: ubuntu-22.04
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: testdb
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    strategy:
+      matrix:
+        python-version: ['3.10']
 
     steps:
       - name: Checkout Repository
@@ -15,7 +34,8 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
 
       - name: Install Dependencies
         run: |
@@ -24,14 +44,23 @@ jobs:
           playwright install --with-deps
 
       - name: Create Reports Directory
+        run: mkdir -p reports/html
+
+      - name: Set Environment Variables
         run: |
-          mkdir -p reports/html
-          mkdir -p reports/logs
+          echo "DB_HOST=localhost" >> $GITHUB_ENV
+          echo "DB_NAME=testdb" >> $GITHUB_ENV
+          echo "DB_USER=postgres" >> $GITHUB_ENV
+          echo "DB_PASSWORD=password" >> $GITHUB_ENV
 
       - name: Run Tests
         run: |
-          pytest tests/ --html=reports/html/report.html --self-contained-html
-        continue-on-error: true
+          pytest tests/ \
+            -n auto \
+            --cov=./ \
+            --cov-report=html:reports/html/coverage \
+            --html=reports/html/report.html \
+            --self-contained-html
 
       - name: Upload Reports
         if: always()
